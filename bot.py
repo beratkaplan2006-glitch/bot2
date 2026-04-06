@@ -6,9 +6,12 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 
 # ENV
-BEARER_TOKEN = os.getenv("BEARER_TOKEN")
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-CHAT_ID = os.getenv("CHAT_ID")
+BEARER_TOKEN = os.getenv("AAAAAAAAAAAAAAAAAAAAAAM108wEAAAAAA
+RvBp1bcjGKdZEn0uхM1c2Np0WBg%3DYRSj
+5Fu0J3zUrRPnBBQqAGWr63UleL0Xp9CB2v
+NImXuNsAp014")
+TELEGRAM_TOKEN = os.getenv("8490901735:AAHmEvwjOfv7flUWzm3DN10x52IaI9ci-wg")
+CHAT_ID = os.getenv("6947368351")
 
 # Hesaplar
 ACCOUNTS = [

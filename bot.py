@@ -5,15 +5,12 @@ import re
 from collections import defaultdict
 from datetime import datetime, timedelta
 
-# ENV
-BEARER_TOKEN = os.getenv("AAAAAAAAAAAAAAAAAAAAAAM108wEAAAAAA
-RvBp1bcjGKdZEn0uхM1c2Np0WBg%3DYRSj
-5Fu0J3zUrRPnBBQqAGWr63UleL0Xp9CB2v
-NImXuNsAp014")
-TELEGRAM_TOKEN = os.getenv("8490901735")
-CHAT_ID = os.getenv("6947368351")
+# ENV (SAKIN DEĞİŞTİRME)
+BEARER_TOKEN = os.getenv("BEARER_TOKEN")
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
+CHAT_ID = os.getenv("CHAT_ID")
 
-# Hesaplar
+# Takip edilen hesaplar
 ACCOUNTS = [
     "JohnZidar","OsamaStocks","trooper_trading","MorningMadness4",
     "thejet_king","DarkpoolAI","mtm_trader","ticker_guru","NuntioBot"
@@ -26,7 +23,6 @@ COOLDOWN_MINUTES = 10
 
 last_alert_time = {}
 
-# Telegram gönder
 def send_telegram(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     try:
@@ -34,7 +30,6 @@ def send_telegram(msg):
     except:
         print("Telegram hata")
 
-# User ID al (GÜVENLİ)
 def get_user_id(username):
     url = f"https://api.twitter.com/2/users/by/username/{username}"
     headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
@@ -52,7 +47,6 @@ def get_user_id(username):
         print("UserID hata:", e)
         return None
 
-# Tweet al
 def get_tweets(user_id):
     url = f"https://api.twitter.com/2/users/{user_id}/tweets"
     headers = {"Authorization": f"Bearer {BEARER_TOKEN}"}
@@ -66,11 +60,10 @@ def get_tweets(user_id):
     except:
         return {}
 
-# Ticker yakala
 def extract_words(text):
     return re.findall(r'\b[A-Z]{3,6}\b', text)
 
-# ID'leri güvenli şekilde çek
+# ID'leri çek
 user_ids = {}
 for acc in ACCOUNTS:
     uid = get_user_id(acc)

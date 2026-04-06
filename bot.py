@@ -6,7 +6,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 
 # ENV
-BEARER_TOKEN = os.getenv("AAAAAAAAAAAAAAAAAAAAAAM108wEAAAAAA
+BEARER_TOKEN = os.getenv("AAAAAAAAAAAAAAAAAAAAAAM108wEAAAAAA"
 RvBp1bcjGKdZEn0uхM1c2Np0WBg%3DYRSj
 5Fu0J3zUrRPnBBQqAGWr63UleL0Xp9CB2v
 NImXuNsAp014")

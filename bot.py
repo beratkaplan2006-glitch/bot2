@@ -37,7 +37,9 @@ def extract_tickers(text):
         "UNDER","AFTER","BEFORE","INTO","ONTO","ABOUT","OF","IN","TO","BY"
     }
 
-    return [w for w in words if w not in blacklist]
+    filtered = [w for w in words if w not in blacklist]
+
+    return filtered
 
 def check():
     ticker_sources = defaultdict(set)
@@ -62,7 +64,7 @@ def check():
             if ticker in sent_alerts:
                 continue
 
-            msg = f"🚨 STRONG SIGNAL\n{ticker}\nKaynak: {len(sources)}/{total_sources}"
+            msg = f"🚨 STRONG SIGNAL\n${ticker}\nKaynak: {len(sources)}/{total_sources}"
             send(msg)
 
             sent_alerts.add(ticker)

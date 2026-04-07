@@ -54,6 +54,9 @@ def send(msg):
         requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
     except:
         print("Telegram hata")
+        
+        print("BOT BASLADI")
+send("🤖 BOT AKTİF VE ÇALIŞIYOR")
 
 # 🔥 ticker bul
 def extract_best_ticker(text):

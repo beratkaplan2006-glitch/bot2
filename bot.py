@@ -31,7 +31,18 @@ AI_THRESHOLD = 40
 
 sent_alerts = set()
 
-# 🔥 NASDAQ verisi
+def send(msg):
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    except:
+        print("Telegram hata")
+
+# 🔥 TEST MESAJI
+print("BOT BASLADI")
+send("BOT AKTIF ✅")
+
+# 🔥 NASDAQ veri
 def load_data():
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/master/data/nasdaq-listed-symbols.csv"
     r = requests.get(url)
@@ -55,14 +66,6 @@ def load_data():
 
 VALID_TICKERS, COMPANY_MAP = load_data()
 
-def send(msg):
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
-    except:
-        print("Telegram hata")
-
-# 🔥 ticker bul
 def extract_best_ticker(text):
     words = re.findall(r'\b[A-Z]{2,5}\b', text)
     lower = text.lower()
@@ -87,7 +90,6 @@ def extract_best_ticker(text):
 
     return Counter(candidates).most_common(1)[0][0]
 
-# 🧠 AI skor
 def ai_score(text):
     text = text.lower()
     score = 0
@@ -117,7 +119,6 @@ def ai_score(text):
 
     return max(0, min(score, 100))
 
-# 📊 pump ihtimali
 def pump_probability(score, sources):
     prob = score
     if sources >= 2:
@@ -126,7 +127,6 @@ def pump_probability(score, sources):
         prob += 10
     return min(prob, 100)
 
-# 🔥 NEWS
 def check_news():
     ticker_sources = defaultdict(set)
     ticker_texts = {}
@@ -183,7 +183,6 @@ def check_news():
         send(msg)
         sent_alerts.add(ticker)
 
-# 🔥 TWITTER (CRASH PROTECTION)
 def check_twitter():
     try:
         import snscrape.modules.twitter as sntwitter
@@ -217,7 +216,6 @@ def check_twitter():
 💰 ${ticker}
 📊 {count} hesapta geçti""")
 
-# 🔁 LOOP
 while True:
     try:
         check_news()

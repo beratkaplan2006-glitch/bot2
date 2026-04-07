@@ -24,7 +24,7 @@ AI_THRESHOLD = 10
 
 sent_alerts = set()
 
-# 🔥 NASDAQ çek
+# 🔥 NASDAQ + şirket adı
 def load_data():
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/master/data/nasdaq-listed-symbols.csv"
     r = requests.get(url)
@@ -41,71 +41,55 @@ def load_data():
 
             tickers.add(ticker)
 
-            # şirket adı parçalama (daha güçlü eşleşme)
-            simple_name = name.split(" inc")[0].split(" corp")[0]
-            name_map[simple_name] = ticker
+            simple = name.split(" inc")[0].split(" corp")[0]
+            name_map[simple] = ticker
 
     return tickers, name_map
 
 VALID_TICKERS, COMPANY_MAP = load_data()
+print(f"{len(VALID_TICKERS)} ticker yüklendi")
 
 def send(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
-# 🔥 TICKER + ŞİRKET ADI
+# 🔥 GELİŞTİRİLMİŞ TICKER BULMA
 def extract_tickers(text):
     found = set()
 
-    # ticker yakalama
     words = re.findall(r'\b[A-Z]{2,5}\b', text)
     for w in words:
         if w in VALID_TICKERS:
             found.add(w)
 
-    # şirket adı yakalama
     lower_text = text.lower()
+
     for name, ticker in COMPANY_MAP.items():
-        if name in lower_text:
+        if name in lower_text or name.split()[0] in lower_text:
             found.add(ticker)
 
     return list(found)
 
-# 🔥 AI SKOR
+# 🧠 AI SKOR
 def ai_score(text):
     text = text.lower()
     score = 0
 
-    positive = {
-        "fda approval": 40,
-        "approval": 25,
-        "acquisition": 30,
-        "merger": 30,
-        "partnership": 25,
-        "contract": 20,
-        "investment": 20,
-        "buyout": 30,
-        "earnings beat": 35,
-        "guidance raised": 30,
-        "upgrade": 25,
-        "expansion": 20
-    }
+    if "approval" in text:
+        score += 25
+    if "acquisition" in text or "merger" in text:
+        score += 30
+    if "partnership" in text:
+        score += 20
+    if "contract" in text:
+        score += 20
+    if "earnings" in text:
+        score += 25
+    if "upgrade" in text:
+        score += 15
 
-    negative = {
-        "offering": -40,
-        "dilution": -50,
-        "bankruptcy": -60,
-        "downgrade": -30,
-        "lawsuit": -25
-    }
-
-    for k, v in positive.items():
-        if k in text:
-            score += v
-
-    for k, v in negative.items():
-        if k in text:
-            score += v
+    if "offering" in text or "dilution" in text:
+        score -= 40
 
     return max(0, min(score, 100))
 
@@ -120,15 +104,18 @@ def check():
 
         for entry in feed.entries[:10]:
 
+            text = entry.title
+            print("HABER:", text)  # DEBUG
+
             if hasattr(entry, "published_parsed"):
                 published = datetime(*entry.published_parsed[:6])
                 if now - published > timedelta(minutes=TIME_WINDOW):
                     continue
 
-            text = entry.title
-            print("HABER", text)
-
             tickers = extract_tickers(text)
+
+            if not tickers:
+                print("TICKER YOK:", text)  # DEBUG
 
             for t in tickers:
                 ticker_sources[t].add(i)
@@ -151,22 +138,21 @@ def check():
             continue
 
         msg = f"""🚨 STRONG SIGNAL
-💰 ${ticker}
-🧠 Skor: {score}/100
-📡 Kaynak: {len(sources)}/{total}
+${ticker}
+Skor: {score}/100
+Kaynak: {len(sources)}/{total}
 
-📰 {ticker_texts[ticker]}
-"""
+{ticker_texts[ticker]}"""
 
         send(msg)
-        sent_alerts.add(ticker)
+        print("GÖNDERİLDİ:", ticker)  # DEBUG
 
-send("bot aktif")
+        sent_alerts.add(ticker)
 
 while True:
     try:
         check()
         time.sleep(SCAN_INTERVAL)
     except Exception as e:
-        print("Hata:", e)
+        print("HATA:", e)
         time.sleep(20)

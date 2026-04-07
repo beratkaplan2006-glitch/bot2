@@ -1,3 +1,4 @@
+send("BOT AKTIF")
 import time
 import requests
 import feedparser

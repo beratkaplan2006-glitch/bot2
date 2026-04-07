@@ -17,13 +17,13 @@ RSS_FEEDS = [
     "https://feeds.finance.yahoo.com/rss/2.0/headline?s=market&region=US&lang=en-US"
 ]
 
-TIME_WINDOW = 15
+TIME_WINDOW = 10
 SCAN_INTERVAL = 10
-AI_THRESHOLD = 10
+AI_THRESHOLD = 40
 
 sent_alerts = set()
 
-# 🔥 NASDAQ + şirket verisi
+# 🔥 NASDAQ veri
 def load_data():
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/master/data/nasdaq-listed-symbols.csv"
     r = requests.get(url)
@@ -39,37 +39,32 @@ def load_data():
             name = parts[1].lower()
 
             tickers.add(ticker)
-
             clean = name.split(" inc")[0].split(" corp")[0]
             name_map[clean] = ticker
 
     return tickers, name_map
 
 VALID_TICKERS, COMPANY_MAP = load_data()
-print(f"{len(VALID_TICKERS)} ticker yüklendi")
 
 def send(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
-# 🔥 GELİŞMİŞ TICKER BULMA
+# 🔥 ticker bul
 def extract_best_ticker(text):
     words = re.findall(r'\b[A-Z]{2,5}\b', text)
     lower = text.lower()
 
     candidates = []
 
-    # ticker direkt
     for w in words:
         if w in VALID_TICKERS:
             candidates.append(w)
 
-    # şirket adı
     for name, ticker in COMPANY_MAP.items():
         if name in lower:
             candidates.append(ticker)
 
-    # kelime bazlı eşleşme
     for name, ticker in COMPANY_MAP.items():
         for part in name.split():
             if part in lower:
@@ -80,34 +75,60 @@ def extract_best_ticker(text):
 
     return Counter(candidates).most_common(1)[0][0]
 
-# 🧠 AI SKOR
+# 🧠 AI skor (GÜÇLENDİRİLDİ)
 def ai_score(text):
     text = text.lower()
     score = 0
 
-    if "approval" in text:
-        score += 25
-    if "acquisition" in text or "merger" in text:
-        score += 30
+    # 🚀 güçlü
+    if "fda approval" in text:
+        score += 60
+    if "acquisition" in text or "buyout" in text:
+        score += 50
+    if "merger" in text:
+        score += 45
+
+    # ⚡ orta
     if "partnership" in text:
-        score += 25
-    if "contract" in text:
-        score += 20
-    if "investment" in text:
-        score += 20
-    if "earnings" in text:
         score += 30
-    if "upgrade" in text:
-        score += 20
-    if "guidance" in text:
+    if "contract" in text:
+        score += 30
+    if "agreement" in text:
         score += 25
 
+    # 💰 finansal
+    if "earnings" in text:
+        score += 40
+    if "guidance raised" in text:
+        score += 40
+    if "upgrade" in text:
+        score += 25
+
+    # 💥 para büyüklüğü
+    if "million" in text:
+        score += 10
+    if "billion" in text:
+        score += 20
+
+    # ❌ negatif
     if "offering" in text or "dilution" in text:
-        score -= 50
-    if "bankruptcy" in text:
         score -= 60
+    if "bankruptcy" in text:
+        score -= 80
 
     return max(0, min(score, 100))
+
+# 🔥 pump ihtimali
+def pump_probability(score, sources):
+    prob = score
+
+    # kaynak sayısı bonus
+    if sources >= 2:
+        prob += 10
+    if sources >= 3:
+        prob += 10
+
+    return min(prob, 100)
 
 def check():
     ticker_sources = defaultdict(set)
@@ -120,18 +141,14 @@ def check():
 
         for entry in feed.entries[:10]:
 
-            text = entry.title
-            print("HABER:", text)  # DEBUG
-
             if hasattr(entry, "published_parsed"):
                 published = datetime(*entry.published_parsed[:6])
                 if now - published > timedelta(minutes=TIME_WINDOW):
                     continue
 
+            text = entry.title
+
             ticker = extract_best_ticker(text)
-
-            print("TICKER:", ticker)  # DEBUG
-
             if not ticker:
                 continue
 
@@ -140,27 +157,27 @@ def check():
 
     for ticker, sources in ticker_sources.items():
 
-        # 🔥 minimum 1 kaynak (test modu)
-        if len(sources) < 1:
+        if len(sources) < 2:
             continue
 
         score = ai_score(ticker_texts[ticker])
-
         if score < AI_THRESHOLD:
             continue
+
+        prob = pump_probability(score, len(sources))
 
         if ticker in sent_alerts:
             continue
 
-        msg = f"""🚨 SIGNAL
+        msg = f"""🚨 STRONG SIGNAL
 💰 ${ticker}
-🧠 Skor: {score}
+🧠 Skor: {score}/100
+📊 Pump: %{prob}
+📡 Kaynak: {len(sources)}
 
 📰 {ticker_texts[ticker]}"""
 
         send(msg)
-        print("GÖNDERİLDİ:", ticker)
-
         sent_alerts.add(ticker)
 
 while True:

@@ -128,9 +128,6 @@ def check():
 
             sent_alerts.add(ticker)
 
-# TEST MESAJI
-send("BOT AKTIF")
-
 while True:
     try:
         check()

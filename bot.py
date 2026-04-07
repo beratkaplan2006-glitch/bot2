@@ -2,49 +2,61 @@ import time
 import requests
 import feedparser
 import os
+import re
+from collections import defaultdict
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 RSS_FEEDS = [
-    "https://financialjuice.com/feed",
-    "https://www.investing.com/rss/news.rss",
-    "https://cointelegraph.com/rss",
-    "https://www.coindesk.com/arc/outboundfeeds/rss/"
+    # SENİN İSTEDİKLER
+    "https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20by%20Organization",
+    "https://www.prnewswire.com/rss/news-releases-list.rss",
+    "https://feeds.businesswire.com/rss/home/?rss=G1QFDERJXkJeEFJQV1Q=",
+
+    # EK KAYNAKLAR
+    "https://www.investing.com/rss/news_25.rss",
+    "https://feeds.finance.yahoo.com/rss/2.0/headline?s=market&region=US&lang=en-US"
 ]
 
-KEYWORDS = [
-    "breaking",
-    "sec",
-    "etf",
-    "bitcoin",
-    "ethereum",
-    "approval",
-    "fed",
-    "interest rate"
-]
+THRESHOLD_RATIO = 0.5  # %50
 
-sent = set()
+sent_alerts = set()
 
 def send(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
+def extract_tickers(text):
+    return re.findall(r'\b[A-Z]{2,5}\b', text)
+
 def check():
-    for url in RSS_FEEDS:
+    ticker_sources = defaultdict(set)
+
+    for i, url in enumerate(RSS_FEEDS):
         feed = feedparser.parse(url)
 
-        for entry in feed.entries[:5]:
-            title = entry.title.lower()
-            link = entry.link
+        for entry in feed.entries[:10]:
+            text = entry.title.upper()
 
-            if link in sent:
+            tickers = extract_tickers(text)
+
+            for t in tickers:
+                ticker_sources[t].add(i)
+
+    total_sources = len(RSS_FEEDS)
+
+    for ticker, sources in ticker_sources.items():
+        ratio = len(sources) / total_sources
+
+        if ratio >= THRESHOLD_RATIO:
+            if ticker in sent_alerts:
                 continue
 
-            if any(k in title for k in KEYWORDS):
-                msg = f"🚨 {entry.title}\n{link}"
-                send(msg)
-                sent.add(link)
+            msg = f"🚨 STRONG SIGNAL\n{ticker}\nKaynak: {len(sources)}/{total_sources}"
+            send(msg)
+
+            sent_alerts.add(ticker)
 
 while True:
     try:

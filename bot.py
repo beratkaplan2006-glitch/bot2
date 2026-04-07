@@ -160,7 +160,7 @@ def check():
         send(msg)
         sent_alerts.add(ticker)
 
-sen("bot aktif")
+send("bot aktif")
 
 while True:
     try:

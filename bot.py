@@ -135,8 +135,8 @@ def check():
 
     for ticker, sources in ticker_sources.items():
 
-        # 🔥 minimum 2 kaynak şartı
-        if len(sources) < 2:
+        # 🔥 minimum 1 kaynak şartı
+        if len(sources) < 1:
             continue
 
         ratio = len(sources) / total

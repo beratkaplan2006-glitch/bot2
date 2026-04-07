@@ -35,7 +35,24 @@ def extract_tickers(text):
         "THE","AND","FOR","WITH","FROM","THIS","THAT","WILL","ARE","HAS",
         "INC","LTD","LLC","PLC","NEW","CEO","USA","USD","NOT","BUT","ALL",
         "OUT","NOW","ONE","TWO","BUY","SELL","TOP","LOW","HIGH","OVER",
-        "UNDER","AFTER","BEFORE","INTO","ONTO","ABOUT","OF","IN","TO","BY"
+        "UNDER","AFTER","BEFORE","INTO","ONTO","ABOUT","OF","IN","TO","BY",
+        "ITS","PET","PRO","DOG","DOGS","FRAUD","NEWS","DATA","INFO","TECH"
+    }
+
+    # sadece blacklist dışı + daha mantıklı olanlar
+    clean = []
+
+    for w in words:
+        if w in blacklist:
+            continue
+
+        # çok generic kelimeleri ele
+        if len(w) <= 2:
+            continue
+
+        clean.append(w)
+
+    return clean
     }
 
     return [w for w in words if w not in blacklist]

@@ -126,6 +126,7 @@ def check():
                     continue
 
             text = entry.title
+            print("HABER", text)
 
             tickers = extract_tickers(text)
 

@@ -20,7 +20,7 @@ RSS_FEEDS = [
 THRESHOLD_RATIO = 0.1
 TIME_WINDOW = 2  # dakika
 SCAN_INTERVAL = 15  # saniye
-AI_THRESHOLD = 50
+AI_THRESHOLD = 10
 
 sent_alerts = set()
 

@@ -17,14 +17,13 @@ RSS_FEEDS = [
     "https://feeds.finance.yahoo.com/rss/2.0/headline?s=market&region=US&lang=en-US"
 ]
 
-THRESHOLD_RATIO = 0
 TIME_WINDOW = 15
 SCAN_INTERVAL = 10
 AI_THRESHOLD = 10
 
 sent_alerts = set()
 
-# 🔥 NASDAQ veri
+# 🔥 NASDAQ + şirket verisi
 def load_data():
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/master/data/nasdaq-listed-symbols.csv"
     r = requests.get(url)
@@ -41,42 +40,47 @@ def load_data():
 
             tickers.add(ticker)
 
-            clean_name = name.split(" inc")[0].split(" corp")[0]
-            name_map[clean_name] = ticker
+            clean = name.split(" inc")[0].split(" corp")[0]
+            name_map[clean] = ticker
 
     return tickers, name_map
 
 VALID_TICKERS, COMPANY_MAP = load_data()
+print(f"{len(VALID_TICKERS)} ticker yüklendi")
 
 def send(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
-# 🔥 GELİŞMİŞ TICKER SEÇİMİ
+# 🔥 GELİŞMİŞ TICKER BULMA
 def extract_best_ticker(text):
     words = re.findall(r'\b[A-Z]{2,5}\b', text)
     lower = text.lower()
 
     candidates = []
 
-    # ticker yakala
+    # ticker direkt
     for w in words:
         if w in VALID_TICKERS:
             candidates.append(w)
 
-    # şirket adı yakala
+    # şirket adı
     for name, ticker in COMPANY_MAP.items():
-        if name in lower or name.split()[0] in lower:
+        if name in lower:
             candidates.append(ticker)
+
+    # kelime bazlı eşleşme
+    for name, ticker in COMPANY_MAP.items():
+        for part in name.split():
+            if part in lower:
+                candidates.append(ticker)
 
     if not candidates:
         return None
 
-    # en çok geçen ticker seç
-    counter = Counter(candidates)
-    return counter.most_common(1)[0][0]
+    return Counter(candidates).most_common(1)[0][0]
 
-# 🧠 AI skor
+# 🧠 AI SKOR
 def ai_score(text):
     text = text.lower()
     score = 0
@@ -116,14 +120,17 @@ def check():
 
         for entry in feed.entries[:10]:
 
+            text = entry.title
+            print("HABER:", text)  # DEBUG
+
             if hasattr(entry, "published_parsed"):
                 published = datetime(*entry.published_parsed[:6])
                 if now - published > timedelta(minutes=TIME_WINDOW):
                     continue
 
-            text = entry.title
-
             ticker = extract_best_ticker(text)
+
+            print("TICKER:", ticker)  # DEBUG
 
             if not ticker:
                 continue
@@ -131,33 +138,29 @@ def check():
             ticker_sources[ticker].add(i)
             ticker_texts[ticker] = text
 
-    total = len(RSS_FEEDS)
-
     for ticker, sources in ticker_sources.items():
 
-        # 🔥 minimum 1 kaynak şartı
+        # 🔥 minimum 1 kaynak (test modu)
         if len(sources) < 1:
             continue
 
-        ratio = len(sources) / total
-        if ratio < THRESHOLD_RATIO:
-            continue
-
         score = ai_score(ticker_texts[ticker])
+
         if score < AI_THRESHOLD:
             continue
 
         if ticker in sent_alerts:
             continue
 
-        msg = f"""🚨 STRONG SIGNAL
+        msg = f"""🚨 SIGNAL
 💰 ${ticker}
-🧠 Skor: {score}/100
-📡 Kaynak: {len(sources)}/{total}
+🧠 Skor: {score}
 
 📰 {ticker_texts[ticker]}"""
 
         send(msg)
+        print("GÖNDERİLDİ:", ticker)
+
         sent_alerts.add(ticker)
 
 while True:

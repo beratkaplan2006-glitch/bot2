@@ -17,10 +17,10 @@ RSS_FEEDS = [
     "https://feeds.finance.yahoo.com/rss/2.0/headline?s=market&region=US&lang=en-US"
 ]
 
-THRESHOLD_RATIO = 0.0
-TIME_WINDOW = 10
+THRESHOLD_RATIO = 0.2
+TIME_WINDOW = 15
 SCAN_INTERVAL = 15
-AI_THRESHOLD = 0
+AI_THRESHOLD = 30
 
 sent_alerts = set()
 

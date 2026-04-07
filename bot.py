@@ -17,9 +17,9 @@ RSS_FEEDS = [
 
 SEC_FEED = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&count=20&output=atom"
 
-TIME_WINDOW = 10
-SCAN_INTERVAL = 15
-AI_THRESHOLD = 40
+TIME_WINDOW = 15
+SCAN_INTERVAL = 10
+AI_THRESHOLD = 20
 
 sent_alerts = set()
 sent_sec = set()
@@ -80,35 +80,28 @@ def extract_best_ticker(text):
 
     return Counter(candidates).most_common(1)[0][0]
 
-# 🧠 AI skor
+# 🧠 AI skor (gevşetildi)
 def ai_score(text):
     text = text.lower()
     score = 0
 
     if "acquisition" in text or "merger" in text:
-        score += 50
-    if "agreement" in text:
-        score += 30
-    if "contract" in text:
-        score += 30
-    if "earnings" in text:
         score += 40
-    if "upgrade" in text:
+    if "agreement" in text:
         score += 25
+    if "contract" in text:
+        score += 25
+    if "earnings" in text:
+        score += 30
+    if "upgrade" in text:
+        score += 20
 
     if "bankruptcy" in text:
-        score -= 80
+        score -= 60
     if "offering" in text:
-        score -= 50
+        score -= 40
 
     return max(0, min(score, 100))
-
-# 📊 pump ihtimali
-def pump_probability(score, sources):
-    prob = score
-    if sources >= 2:
-        prob += 10
-    return min(prob, 100)
 
 # 🔥 NEWS
 def check_news():
@@ -144,7 +137,8 @@ def check_news():
 
     for ticker, sources in ticker_sources.items():
 
-        if len(sources) < 2:
+        # 🔥 artık 1 kaynak yeter
+        if len(sources) < 1:
             continue
 
         score = ai_score(ticker_texts[ticker])
@@ -154,12 +148,9 @@ def check_news():
         if ticker in sent_alerts:
             continue
 
-        prob = pump_probability(score, len(sources))
-
-        msg = f"""🚨 ONAYLI (NEWS)
+        msg = f"""🚨 NEWS
 💰 ${ticker}
 🧠 Skor: {score}
-📊 Pump: %{prob}
 📡 Kaynak: {len(sources)}
 
 📰 {ticker_texts[ticker]}"""
@@ -167,7 +158,7 @@ def check_news():
         send(msg)
         sent_alerts.add(ticker)
 
-# 🔥 SEC (ERKEN)
+# 🔥 SEC (GÜÇLÜ Fallback)
 def check_sec():
     try:
         feed = feedparser.parse(SEC_FEED)
@@ -183,10 +174,18 @@ def check_sec():
 
         ticker = extract_best_ticker(title)
 
+        # 🔥 fallback
+        if not ticker:
+            words = re.findall(r'\b[A-Z]{2,5}\b', title)
+            if words:
+                ticker = words[0]
+
         if not ticker:
             continue
 
-        msg = f"""⚠️ ERKEN (SEC)
+        print("SEC HABER:", title)
+
+        msg = f"""⚠️ SEC
 💰 ${ticker}
 
 📄 {title}"""

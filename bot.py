@@ -12,35 +12,17 @@ CHAT_ID = os.getenv("CHAT_ID")
 RSS_FEEDS = [
     "https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20by%20Organization",
     "https://www.prnewswire.com/rss/news-releases-list.rss",
-    "https://feeds.businesswire.com/rss/home/?rss=G1QFDERJXkJeEFJQV1Q=",
-    "https://www.investing.com/rss/news_25.rss",
-    "https://feeds.finance.yahoo.com/rss/2.0/headline?s=market&region=US&lang=en-US"
+    "https://feeds.businesswire.com/rss/home/?rss=G1QFDERJXkJeEFJQV1Q="
 ]
 
-TWITTER_ACCOUNTS = [
-    "unusual_whales",
-    "DeItaone",
-    "zerohedge",
-    "BreakingStocks",
-    "StockMKTNewz"
-]
+SEC_FEED = "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&count=20&output=atom"
 
 TIME_WINDOW = 10
 SCAN_INTERVAL = 15
 AI_THRESHOLD = 40
 
 sent_alerts = set()
-
-def send(msg):
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
-    except:
-        print("Telegram hata")
-
-# 🔥 TEST MESAJI
-print("BOT BASLADI")
-send("BOT AKTIF ✅")
+sent_sec = set()
 
 # 🔥 NASDAQ veri
 def load_data():
@@ -66,6 +48,14 @@ def load_data():
 
 VALID_TICKERS, COMPANY_MAP = load_data()
 
+def send(msg):
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    except:
+        print("Telegram hata")
+
+# 🔥 ticker bul
 def extract_best_ticker(text):
     words = re.findall(r'\b[A-Z]{2,5}\b', text)
     lower = text.lower()
@@ -90,17 +80,14 @@ def extract_best_ticker(text):
 
     return Counter(candidates).most_common(1)[0][0]
 
+# 🧠 AI skor
 def ai_score(text):
     text = text.lower()
     score = 0
 
-    if "fda approval" in text:
-        score += 60
-    if "acquisition" in text or "buyout" in text:
+    if "acquisition" in text or "merger" in text:
         score += 50
-    if "merger" in text:
-        score += 45
-    if "partnership" in text:
+    if "agreement" in text:
         score += 30
     if "contract" in text:
         score += 30
@@ -109,24 +96,21 @@ def ai_score(text):
     if "upgrade" in text:
         score += 25
 
-    if "million" in text:
-        score += 10
-    if "billion" in text:
-        score += 20
-
-    if "offering" in text or "dilution" in text:
-        score -= 60
+    if "bankruptcy" in text:
+        score -= 80
+    if "offering" in text:
+        score -= 50
 
     return max(0, min(score, 100))
 
+# 📊 pump ihtimali
 def pump_probability(score, sources):
     prob = score
     if sources >= 2:
         prob += 10
-    if sources >= 3:
-        prob += 10
     return min(prob, 100)
 
+# 🔥 NEWS
 def check_news():
     ticker_sources = defaultdict(set)
     ticker_texts = {}
@@ -167,12 +151,12 @@ def check_news():
         if score < AI_THRESHOLD:
             continue
 
-        prob = pump_probability(score, len(sources))
-
         if ticker in sent_alerts:
             continue
 
-        msg = f"""🚨 ONAYLI (News)
+        prob = pump_probability(score, len(sources))
+
+        msg = f"""🚨 ONAYLI (NEWS)
 💰 ${ticker}
 🧠 Skor: {score}
 📊 Pump: %{prob}
@@ -183,44 +167,48 @@ def check_news():
         send(msg)
         sent_alerts.add(ticker)
 
-def check_twitter():
+# 🔥 SEC (ERKEN)
+def check_sec():
     try:
-        import snscrape.modules.twitter as sntwitter
+        feed = feedparser.parse(SEC_FEED)
     except:
-        print("Twitter modülü yok")
         return
 
-    ticker_count = defaultdict(int)
+    for entry in feed.entries[:10]:
 
-    for user in TWITTER_ACCOUNTS:
-        try:
-            tweets = sntwitter.TwitterUserScraper(user).get_items()
+        title = entry.title
 
-            for i, tweet in enumerate(tweets):
-                if i > 0:
-                    break
-
-                text = tweet.content
-                tickers = re.findall(r'\$([A-Z]{2,5})', text)
-
-                for t in tickers:
-                    ticker_count[t] += 1
-
-        except Exception as e:
-            print("Twitter hata:", e)
+        if title in sent_sec:
             continue
 
-    for ticker, count in ticker_count.items():
-        if count >= 2:
-            send(f"""⚠️ ERKEN (Twitter)
-💰 ${ticker}
-📊 {count} hesapta geçti""")
+        ticker = extract_best_ticker(title)
 
+        if not ticker:
+            continue
+
+        msg = f"""⚠️ ERKEN (SEC)
+💰 ${ticker}
+
+📄 {title}"""
+
+        send(msg)
+        sent_sec.add(title)
+
+# 🔁 LOOP
 while True:
     try:
-        check_news()
-        check_twitter()
+        try:
+            check_news()
+        except Exception as e:
+            print("News hata:", e)
+
+        try:
+            check_sec()
+        except Exception as e:
+            print("SEC hata:", e)
+
         time.sleep(SCAN_INTERVAL)
+
     except Exception as e:
         print("GENEL HATA:", e)
         time.sleep(20)

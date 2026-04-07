@@ -5,10 +5,12 @@ import os
 import re
 from collections import defaultdict, Counter
 from datetime import datetime, timedelta
+import snscrape.modules.twitter as sntwitter
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
+# 🔥 RSS kaynakları
 RSS_FEEDS = [
     "https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20by%20Organization",
     "https://www.prnewswire.com/rss/news-releases-list.rss",
@@ -17,13 +19,22 @@ RSS_FEEDS = [
     "https://feeds.finance.yahoo.com/rss/2.0/headline?s=market&region=US&lang=en-US"
 ]
 
+# 🔥 Twitter hesapları
+TWITTER_ACCOUNTS = [
+    "unusual_whales",
+    "DeItaone",
+    "zerohedge",
+    "BreakingStocks",
+    "StockMKTNewz"
+]
+
 TIME_WINDOW = 10
-SCAN_INTERVAL = 10
+SCAN_INTERVAL = 15
 AI_THRESHOLD = 40
 
 sent_alerts = set()
 
-# 🔥 NASDAQ veri
+# 🔥 NASDAQ verisi
 def load_data():
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/master/data/nasdaq-listed-symbols.csv"
     r = requests.get(url)
@@ -39,6 +50,7 @@ def load_data():
             name = parts[1].lower()
 
             tickers.add(ticker)
+
             clean = name.split(" inc")[0].split(" corp")[0]
             name_map[clean] = ticker
 
@@ -75,62 +87,47 @@ def extract_best_ticker(text):
 
     return Counter(candidates).most_common(1)[0][0]
 
-# 🧠 AI skor (GÜÇLENDİRİLDİ)
+# 🧠 AI skor
 def ai_score(text):
     text = text.lower()
     score = 0
 
-    # 🚀 güçlü
     if "fda approval" in text:
         score += 60
     if "acquisition" in text or "buyout" in text:
         score += 50
     if "merger" in text:
         score += 45
-
-    # ⚡ orta
     if "partnership" in text:
         score += 30
     if "contract" in text:
         score += 30
-    if "agreement" in text:
-        score += 25
-
-    # 💰 finansal
     if "earnings" in text:
-        score += 40
-    if "guidance raised" in text:
         score += 40
     if "upgrade" in text:
         score += 25
 
-    # 💥 para büyüklüğü
     if "million" in text:
         score += 10
     if "billion" in text:
         score += 20
 
-    # ❌ negatif
     if "offering" in text or "dilution" in text:
         score -= 60
-    if "bankruptcy" in text:
-        score -= 80
 
     return max(0, min(score, 100))
 
-# 🔥 pump ihtimali
+# 📊 pump ihtimali
 def pump_probability(score, sources):
     prob = score
-
-    # kaynak sayısı bonus
     if sources >= 2:
         prob += 10
     if sources >= 3:
         prob += 10
-
     return min(prob, 100)
 
-def check():
+# 🔥 HABER SİSTEMİ
+def check_news():
     ticker_sources = defaultdict(set)
     ticker_texts = {}
 
@@ -147,8 +144,8 @@ def check():
                     continue
 
             text = entry.title
-
             ticker = extract_best_ticker(text)
+
             if not ticker:
                 continue
 
@@ -169,9 +166,9 @@ def check():
         if ticker in sent_alerts:
             continue
 
-        msg = f"""🚨 STRONG SIGNAL
+        msg = f"""🚨 ONAYLI (News)
 💰 ${ticker}
-🧠 Skor: {score}/100
+🧠 Skor: {score}
 📊 Pump: %{prob}
 📡 Kaynak: {len(sources)}
 
@@ -180,9 +177,35 @@ def check():
         send(msg)
         sent_alerts.add(ticker)
 
+# 🔥 TWITTER ERKEN SİNYAL
+def check_twitter():
+    ticker_count = defaultdict(int)
+
+    for user in TWITTER_ACCOUNTS:
+        try:
+            for tweet in sntwitter.TwitterUserScraper(user).get_items():
+                text = tweet.content
+
+                tickers = re.findall(r'\$([A-Z]{2,5})', text)
+
+                for t in tickers:
+                    ticker_count[t] += 1
+
+                break
+        except:
+            continue
+
+    for ticker, count in ticker_count.items():
+        if count >= 2:
+            send(f"""⚠️ ERKEN (Twitter)
+💰 ${ticker}
+📊 {count} hesapta geçti""")
+
+# 🔁 LOOP
 while True:
     try:
-        check()
+        check_news()
+        check_twitter()
         time.sleep(SCAN_INTERVAL)
     except Exception as e:
         print("HATA:", e)

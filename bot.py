@@ -24,7 +24,21 @@ AI_THRESHOLD = 20
 sent_alerts = set()
 sent_sec = set()
 
-# 🔥 NASDAQ veri
+# 🔥 BOT AKTİF MESAJI
+def send(msg):
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    except:
+        print("Telegram hata")
+
+print("BOT BASLADI")
+send("🤖 BOT AKTİF VE ÇALIŞIYOR")
+
+# ⏱ HEARTBEAT (20 DK)
+last_heartbeat = datetime.utcnow()
+
+# 🔥 NASDAQ
 def load_data():
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/master/data/nasdaq-listed-symbols.csv"
     r = requests.get(url)
@@ -47,16 +61,6 @@ def load_data():
     return tickers, name_map
 
 VALID_TICKERS, COMPANY_MAP = load_data()
-
-def send(msg):
-    try:
-        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
-    except:
-        print("Telegram hata")
-        
-        print("BOT BASLADI")
-send("🤖 BOT AKTİF VE ÇALIŞIYOR")
 
 # 🔥 ticker bul
 def extract_best_ticker(text):
@@ -83,28 +87,46 @@ def extract_best_ticker(text):
 
     return Counter(candidates).most_common(1)[0][0]
 
-# 🧠 AI skor (gevşetildi)
+# 🧠 AI SKOR
 def ai_score(text):
     text = text.lower()
     score = 0
 
-    if "acquisition" in text or "merger" in text:
-        score += 40
+    if "acquisition" in text or "buyout" in text:
+        score += 50
+    if "merger" in text:
+        score += 45
     if "agreement" in text:
-        score += 25
+        score += 30
     if "contract" in text:
+        score += 30
+    if "partnership" in text:
         score += 25
     if "earnings" in text:
-        score += 30
+        score += 35
     if "upgrade" in text:
+        score += 25
+
+    if "million" in text:
+        score += 10
+    if "billion" in text:
         score += 20
 
-    if "bankruptcy" in text:
+    if "offering" in text or "dilution" in text:
         score -= 60
-    if "offering" in text:
-        score -= 40
+    if "bankruptcy" in text:
+        score -= 80
 
     return max(0, min(score, 100))
+
+# 📊 PUMP
+def pump_probability(score, sources):
+    prob = score
+    if sources >= 2:
+        prob += 10
+    if sources >= 3:
+        prob += 10
+    return min(prob, 100)
 
 # 🔥 NEWS
 def check_news():
@@ -140,7 +162,6 @@ def check_news():
 
     for ticker, sources in ticker_sources.items():
 
-        # 🔥 artık 1 kaynak yeter
         if len(sources) < 1:
             continue
 
@@ -151,9 +172,12 @@ def check_news():
         if ticker in sent_alerts:
             continue
 
+        prob = pump_probability(score, len(sources))
+
         msg = f"""🚨 NEWS
 💰 ${ticker}
-🧠 Skor: {score}
+🧠 Skor: {score}/100
+📊 Pump: %{prob}
 📡 Kaynak: {len(sources)}
 
 📰 {ticker_texts[ticker]}"""
@@ -161,7 +185,7 @@ def check_news():
         send(msg)
         sent_alerts.add(ticker)
 
-# 🔥 SEC (GÜÇLÜ Fallback)
+# 🔥 SEC
 def check_sec():
     try:
         feed = feedparser.parse(SEC_FEED)
@@ -177,7 +201,6 @@ def check_sec():
 
         ticker = extract_best_ticker(title)
 
-        # 🔥 fallback
         if not ticker:
             words = re.findall(r'\b[A-Z]{2,5}\b', title)
             if words:
@@ -186,10 +209,13 @@ def check_sec():
         if not ticker:
             continue
 
-        print("SEC HABER:", title)
+        score = ai_score(title)
+        prob = pump_probability(score, 1)
 
         msg = f"""⚠️ SEC
 💰 ${ticker}
+🧠 Skor: {score}/100
+📊 Pump: %{prob}
 
 📄 {title}"""
 
@@ -199,6 +225,13 @@ def check_sec():
 # 🔁 LOOP
 while True:
     try:
+        now = datetime.utcnow()
+
+        # 🔥 HEARTBEAT 20 DK
+        if now - last_heartbeat >= timedelta(minutes=20):
+            send("🟢 BOT ÇALIŞIYOR (20 dk kontrol)")
+            last_heartbeat = now
+
         try:
             check_news()
         except Exception as e:

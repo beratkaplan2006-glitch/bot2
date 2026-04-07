@@ -3,7 +3,7 @@ import requests
 import feedparser
 import os
 import re
-from collections import defaultdict
+from collections import defaultdict, Counter
 from datetime import datetime, timedelta
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
@@ -24,7 +24,7 @@ AI_THRESHOLD = 10
 
 sent_alerts = set()
 
-# 🔥 NASDAQ + şirket adı
+# 🔥 NASDAQ veri
 def load_data():
     url = "https://raw.githubusercontent.com/datasets/nasdaq-listings/master/data/nasdaq-listed-symbols.csv"
     r = requests.get(url)
@@ -41,36 +41,42 @@ def load_data():
 
             tickers.add(ticker)
 
-            simple = name.split(" inc")[0].split(" corp")[0]
-            name_map[simple] = ticker
+            clean_name = name.split(" inc")[0].split(" corp")[0]
+            name_map[clean_name] = ticker
 
     return tickers, name_map
 
 VALID_TICKERS, COMPANY_MAP = load_data()
-print(f"{len(VALID_TICKERS)} ticker yüklendi")
 
 def send(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
-# 🔥 GELİŞTİRİLMİŞ TICKER BULMA
-def extract_tickers(text):
-    found = set()
-
+# 🔥 GELİŞMİŞ TICKER SEÇİMİ
+def extract_best_ticker(text):
     words = re.findall(r'\b[A-Z]{2,5}\b', text)
+    lower = text.lower()
+
+    candidates = []
+
+    # ticker yakala
     for w in words:
         if w in VALID_TICKERS:
-            found.add(w)
+            candidates.append(w)
 
-    lower_text = text.lower()
-
+    # şirket adı yakala
     for name, ticker in COMPANY_MAP.items():
-        if name in lower_text or name.split()[0] in lower_text:
-            found.add(ticker)
+        if name in lower or name.split()[0] in lower:
+            candidates.append(ticker)
 
-    return list(found)
+    if not candidates:
+        return None
 
-# 🧠 AI SKOR
+    # en çok geçen ticker seç
+    counter = Counter(candidates)
+    return counter.most_common(1)[0][0]
+
+# 🧠 AI skor
 def ai_score(text):
     text = text.lower()
     score = 0
@@ -80,16 +86,22 @@ def ai_score(text):
     if "acquisition" in text or "merger" in text:
         score += 30
     if "partnership" in text:
-        score += 20
+        score += 25
     if "contract" in text:
         score += 20
+    if "investment" in text:
+        score += 20
     if "earnings" in text:
-        score += 25
+        score += 30
     if "upgrade" in text:
-        score += 15
+        score += 20
+    if "guidance" in text:
+        score += 25
 
     if "offering" in text or "dilution" in text:
-        score -= 40
+        score -= 50
+    if "bankruptcy" in text:
+        score -= 60
 
     return max(0, min(score, 100))
 
@@ -104,33 +116,34 @@ def check():
 
         for entry in feed.entries[:10]:
 
-            text = entry.title
-            print("HABER:", text)  # DEBUG
-
             if hasattr(entry, "published_parsed"):
                 published = datetime(*entry.published_parsed[:6])
                 if now - published > timedelta(minutes=TIME_WINDOW):
                     continue
 
-            tickers = extract_tickers(text)
+            text = entry.title
 
-            if not tickers:
-                print("TICKER YOK:", text)  # DEBUG
+            ticker = extract_best_ticker(text)
 
-            for t in tickers:
-                ticker_sources[t].add(i)
-                ticker_texts[t] = text
+            if not ticker:
+                continue
+
+            ticker_sources[ticker].add(i)
+            ticker_texts[ticker] = text
 
     total = len(RSS_FEEDS)
 
     for ticker, sources in ticker_sources.items():
-        ratio = len(sources) / total
 
+        # 🔥 minimum 2 kaynak şartı
+        if len(sources) < 2:
+            continue
+
+        ratio = len(sources) / total
         if ratio < THRESHOLD_RATIO:
             continue
 
         score = ai_score(ticker_texts[ticker])
-
         if score < AI_THRESHOLD:
             continue
 
@@ -138,15 +151,13 @@ def check():
             continue
 
         msg = f"""🚨 STRONG SIGNAL
-${ticker}
-Skor: {score}/100
-Kaynak: {len(sources)}/{total}
+💰 ${ticker}
+🧠 Skor: {score}/100
+📡 Kaynak: {len(sources)}/{total}
 
-{ticker_texts[ticker]}"""
+📰 {ticker_texts[ticker]}"""
 
         send(msg)
-        print("GÖNDERİLDİ:", ticker)  # DEBUG
-
         sent_alerts.add(ticker)
 
 while True:

@@ -13,7 +13,7 @@ CHAT_ID = os.getenv("CHAT_ID")
 # Takip edilen hesaplar
 ACCOUNTS = [
     "JohnZidar","OsamaStocks","trooper_trading","MorningMadness4",
-    "thejet_king","DarkpoolAI","mtm_trader","ticker_guru","NuntioBot"
+    "thejet_king","DarkpoolAI","mtm_trader","ticker_guru","NuntioBot","WatcherGuru"
 ]
 
 # Ayarlar

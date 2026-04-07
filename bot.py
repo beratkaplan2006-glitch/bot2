@@ -5,12 +5,10 @@ import os
 import re
 from collections import defaultdict, Counter
 from datetime import datetime, timedelta
-import snscrape.modules.twitter as sntwitter
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
-# 🔥 RSS kaynakları
 RSS_FEEDS = [
     "https://www.globenewswire.com/RssFeed/orgclass/1/feedTitle/GlobeNewswire%20-%20News%20by%20Organization",
     "https://www.prnewswire.com/rss/news-releases-list.rss",
@@ -19,7 +17,6 @@ RSS_FEEDS = [
     "https://feeds.finance.yahoo.com/rss/2.0/headline?s=market&region=US&lang=en-US"
 ]
 
-# 🔥 Twitter hesapları
 TWITTER_ACCOUNTS = [
     "unusual_whales",
     "DeItaone",
@@ -59,8 +56,11 @@ def load_data():
 VALID_TICKERS, COMPANY_MAP = load_data()
 
 def send(msg):
-    url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
-    requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    try:
+        url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
+        requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
+    except:
+        print("Telegram hata")
 
 # 🔥 ticker bul
 def extract_best_ticker(text):
@@ -126,7 +126,7 @@ def pump_probability(score, sources):
         prob += 10
     return min(prob, 100)
 
-# 🔥 HABER SİSTEMİ
+# 🔥 NEWS
 def check_news():
     ticker_sources = defaultdict(set)
     ticker_texts = {}
@@ -134,23 +134,29 @@ def check_news():
     now = datetime.utcnow()
 
     for i, url in enumerate(RSS_FEEDS):
-        feed = feedparser.parse(url)
+        try:
+            feed = feedparser.parse(url)
+        except:
+            continue
 
         for entry in feed.entries[:10]:
 
-            if hasattr(entry, "published_parsed"):
-                published = datetime(*entry.published_parsed[:6])
-                if now - published > timedelta(minutes=TIME_WINDOW):
+            try:
+                if hasattr(entry, "published_parsed"):
+                    published = datetime(*entry.published_parsed[:6])
+                    if now - published > timedelta(minutes=TIME_WINDOW):
+                        continue
+
+                text = entry.title
+                ticker = extract_best_ticker(text)
+
+                if not ticker:
                     continue
 
-            text = entry.title
-            ticker = extract_best_ticker(text)
-
-            if not ticker:
+                ticker_sources[ticker].add(i)
+                ticker_texts[ticker] = text
+            except:
                 continue
-
-            ticker_sources[ticker].add(i)
-            ticker_texts[ticker] = text
 
     for ticker, sources in ticker_sources.items():
 
@@ -177,22 +183,32 @@ def check_news():
         send(msg)
         sent_alerts.add(ticker)
 
-# 🔥 TWITTER ERKEN SİNYAL
+# 🔥 TWITTER (CRASH PROTECTION)
 def check_twitter():
+    try:
+        import snscrape.modules.twitter as sntwitter
+    except:
+        print("Twitter modülü yok")
+        return
+
     ticker_count = defaultdict(int)
 
     for user in TWITTER_ACCOUNTS:
         try:
-            for tweet in sntwitter.TwitterUserScraper(user).get_items():
-                text = tweet.content
+            tweets = sntwitter.TwitterUserScraper(user).get_items()
 
+            for i, tweet in enumerate(tweets):
+                if i > 0:
+                    break
+
+                text = tweet.content
                 tickers = re.findall(r'\$([A-Z]{2,5})', text)
 
                 for t in tickers:
                     ticker_count[t] += 1
 
-                break
-        except:
+        except Exception as e:
+            print("Twitter hata:", e)
             continue
 
     for ticker, count in ticker_count.items():
@@ -208,5 +224,5 @@ while True:
         check_twitter()
         time.sleep(SCAN_INTERVAL)
     except Exception as e:
-        print("HATA:", e)
+        print("GENEL HATA:", e)
         time.sleep(20)

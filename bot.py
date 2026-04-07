@@ -128,6 +128,8 @@ def check():
 
             sent_alerts.add(ticker)
 
+send("Bot aktif")
+
 while True:
     try:
         check()

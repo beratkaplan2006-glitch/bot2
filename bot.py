@@ -18,7 +18,7 @@ RSS_FEEDS = [
 ]
 
 THRESHOLD_RATIO = 0.3
-TIME_WINDOW = 2  # dakika
+TIME_WINDOW = 5  # dakika
 SCAN_INTERVAL = 15  # saniye
 AI_THRESHOLD = 60
 

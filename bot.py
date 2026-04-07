@@ -17,9 +17,9 @@ RSS_FEEDS = [
     "https://feeds.finance.yahoo.com/rss/2.0/headline?s=market&region=US&lang=en-US"
 ]
 
-THRESHOLD_RATIO = 0.2
-TIME_WINDOW = 10  # dakika
-SCAN_INTERVAL = 15  # saniye
+THRESHOLD_RATIO = 0.3
+TIME_WINDOW = 10
+SCAN_INTERVAL = 15
 AI_THRESHOLD = 10
 
 sent_alerts = set()
@@ -28,6 +28,7 @@ def send(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
+# ✅ DÜZELTİLMİŞ TICKER FİLTRE
 def extract_tickers(text):
     words = re.findall(r'\b[A-Z]{2,5}\b', text)
 
@@ -39,25 +40,18 @@ def extract_tickers(text):
         "ITS","PET","PRO","DOG","DOGS","FRAUD","NEWS","DATA","INFO","TECH"
     }
 
-    # sadece blacklist dışı + daha mantıklı olanlar
     clean = []
 
     for w in words:
         if w in blacklist:
             continue
-
-        # çok generic kelimeleri ele
         if len(w) <= 2:
             continue
-
         clean.append(w)
 
     return clean
-    }
 
-    return [w for w in words if w not in blacklist]
-
-# 🧠 AI SKOR FONKSİYONU
+# 🧠 AI SKOR
 def ai_score(text):
     text = text.lower()
     score = 0
@@ -110,7 +104,6 @@ def check():
 
         for entry in feed.entries[:10]:
 
-            # ⏱️ zaman filtresi
             if hasattr(entry, "published_parsed"):
                 published = datetime(*entry.published_parsed[:6])
                 if now - published > timedelta(minutes=TIME_WINDOW):

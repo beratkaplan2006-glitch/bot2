@@ -28,7 +28,16 @@ def send(msg):
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
 def extract_tickers(text):
-    return re.findall(r'\b[A-Z]{2,5}\b', text)
+    words = re.findall(r'\b[A-Z]{2,5}\b', text)
+
+    blacklist = {
+        "THE","AND","FOR","WITH","FROM","THIS","THAT","WILL","ARE","HAS",
+        "INC","LTD","LLC","PLC","NEW","CEO","USA","USD","NOT","BUT","ALL",
+        "OUT","NOW","ONE","TWO","BUY","SELL","TOP","LOW","HIGH","OVER",
+        "UNDER","AFTER","BEFORE","INTO","ONTO","ABOUT","OF","IN","TO","BY"
+    }
+
+    return [w for w in words if w not in blacklist]
 
 def check():
     ticker_sources = defaultdict(set)

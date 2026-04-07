@@ -7,47 +7,49 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 CHAT_ID = os.getenv("CHAT_ID")
 
 RSS_FEEDS = [
-    "https://www.coindesk.com/arc/outboundfeeds/rss/",
+    "https://financialjuice.com/feed",
+    "https://www.investing.com/rss/news.rss",
     "https://cointelegraph.com/rss",
-    "https://www.investing.com/rss/news.rss"
+    "https://www.coindesk.com/arc/outboundfeeds/rss/"
 ]
 
 KEYWORDS = [
-    "bitcoin",
-    "ethereum",
+    "breaking",
     "sec",
     "etf",
-    "breaking",
+    "bitcoin",
+    "ethereum",
     "approval",
-    "partnership"
+    "fed",
+    "interest rate"
 ]
 
-sent_links = set()
+sent = set()
 
-def send_telegram(msg):
+def send(msg):
     url = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage"
     requests.post(url, data={"chat_id": CHAT_ID, "text": msg})
 
-def check_news():
-    for feed_url in RSS_FEEDS:
-        feed = feedparser.parse(feed_url)
+def check():
+    for url in RSS_FEEDS:
+        feed = feedparser.parse(url)
 
         for entry in feed.entries[:5]:
             title = entry.title.lower()
             link = entry.link
 
-            if link in sent_links:
+            if link in sent:
                 continue
 
             if any(k in title for k in KEYWORDS):
-                msg = f"🚨 HABER:\n{entry.title}\n{link}"
-                send_telegram(msg)
-                sent_links.add(link)
+                msg = f"🚨 {entry.title}\n{link}"
+                send(msg)
+                sent.add(link)
 
 while True:
     try:
-        check_news()
-        time.sleep(60)  # 1 dakikada bir kontrol
-    except Exception as e:
-        print("Hata:", e)
+        check()
         time.sleep(30)
+    except Exception as e:
+        print(e)
+        time.sleep(60)

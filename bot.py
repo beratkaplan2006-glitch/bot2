@@ -228,8 +228,8 @@ while True:
         now = datetime.utcnow()
 
         # 🔥 HEARTBEAT 20 DK
-        if now - last_heartbeat >= timedelta(minutes=20):
-            send("🟢 BOT ÇALIŞIYOR (20 dk kontrol)")
+        if now - last_heartbeat >= timedelta(minutes=60):
+            send("🟢 BOT ÇALIŞIYOR (60 dk kontrol)")
             last_heartbeat = now
 
         try:
